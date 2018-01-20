@@ -1,4 +1,5 @@
 <?php
+
 namespace DachcomDigital\Payum\Powerpay\Action\Api;
 
 use DachcomDigital\Payum\Powerpay\Api;
@@ -46,7 +47,7 @@ class ActivateAction implements ActionInterface, GatewayAwareInterface, ApiAware
 
         $details['transactionType'] = 'debit';
 
-        $details->validateNotEmpty(array('cardNumber'));
+        $details->validateNotEmpty(['cardNumber']);
 
         try {
             $result = $this->api->generateActivationRequest($details);
@@ -71,7 +72,6 @@ class ActivateAction implements ActionInterface, GatewayAwareInterface, ApiAware
     {
         return
             $request instanceof Activate &&
-            $request->getModel() instanceof \ArrayAccess
-        ;
+            $request->getModel() instanceof \ArrayAccess;
     }
 }
