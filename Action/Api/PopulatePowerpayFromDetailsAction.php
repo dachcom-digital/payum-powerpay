@@ -41,8 +41,6 @@ class PopulatePowerpayFromDetailsAction implements ActionInterface, GatewayAware
     {
         RequestNotSupportedException::assertSupports($this, $request);
         $details = ArrayObject::ensureArrayObject($request->getModel());
-
-        $details['gender'] = 'male';
     }
 
     /**

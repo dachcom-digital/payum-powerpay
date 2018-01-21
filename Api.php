@@ -175,7 +175,7 @@ class Api
     public function getApiEndpoint()
     {
         if ($this->options['sandbox'] === false) {
-            return 'https://testgateway.mfgroup.ch';
+            return 'https://gateway.mfgroup.ch';
         }
 
         return 'https://testgateway.mfgroup.ch';
