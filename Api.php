@@ -43,9 +43,6 @@ class Api
      */
     public function __construct(array $options, HttpClientInterface $client, MessageFactory $messageFactory)
     {
-        $options['username'] = 'luxuryTest';
-        $options['password'] = 'shJc8gda';
-
         $options = ArrayObject::ensureArrayObject($options);
         $options->defaults($this->options);
         $options->validateNotEmpty([
@@ -116,7 +113,6 @@ class Api
         $xml->addChild('TransactionType', $details['transactionType']);
         $xml->addChild('Currency', $details['currencyCode']);
         $xml->addChild('Amount', $details['amount']);
-        //$xml->addChild('ExternalReference', $details['externalReference']);
 
         $xml->addChild('MerchantId', $this->options['merchantId']);
         $xml->addChild('FilialId', $this->options['filialId']);
