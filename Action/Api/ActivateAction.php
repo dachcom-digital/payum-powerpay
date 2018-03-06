@@ -42,23 +42,23 @@ class ActivateAction implements ActionInterface, GatewayAwareInterface, ApiAware
     public function execute($request)
     {
         RequestNotSupportedException::assertSupports($this, $request);
-
         $details = ArrayObject::ensureArrayObject($request->getModel());
 
-        $details['transactionType'] = 'debit';
+        $details->validateNotEmpty(['card_number']);
 
-        $details->validateNotEmpty(['cardNumber']);
+        //set transaction type
+        $details['transaction_type'] = 'debit';
 
         try {
             $result = $this->api->generateActivationRequest($details);
 
-            $details['responseCode'] = $result['ResponseCode'];
-            $details['responseDate'] = $result['ResponseDate'];
-            $details['authorizationCode'] = $result['AuthorizationCode'];
+            $details['response_code'] = $result['ResponseCode'];
+            $details['response_date'] = $result['ResponseDate'];
+            $details['authorization_code'] = $result['AuthorizationCode'];
             $details['currency'] = $result['Currency'];
             $details['balance'] = $result['Balance'];
-            $details['cardNumber'] = $result['CardNumber'];
-            $details['expirationDate'] = $result['ExpirationDate'];
+            $details['card_number'] = $result['CardNumber'];
+            $details['expiration_date'] = $result['ExpirationDate'];
 
         } catch (PowerpayException $e) {
             $this->populateDetailsWithError($details, $e, $request);

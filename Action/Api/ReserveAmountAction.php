@@ -4,8 +4,8 @@ namespace DachcomDigital\Payum\Powerpay\Action\Api;
 
 use DachcomDigital\Payum\Powerpay\Api;
 use DachcomDigital\Payum\Powerpay\Exception\PowerpayException;
-use DachcomDigital\Payum\Powerpay\Request\Api\PopulatePowerpayFromDetails;
 use DachcomDigital\Payum\Powerpay\Request\Api\ReserveAmount;
+use DachcomDigital\Payum\Powerpay\Request\Api\Transformer\CustomerTransformer;
 use Payum\Core\Action\ActionInterface;
 use Payum\Core\ApiAwareInterface;
 use Payum\Core\Bridge\Spl\ArrayObject;
@@ -38,24 +38,26 @@ class ReserveAmountAction implements ActionInterface, GatewayAwareInterface, Api
     /**
      * {@inheritDoc}
      *
-     * @param ReserveAmountAction $request
+     * @param ReserveAmount $request
      */
     public function execute($request)
     {
         RequestNotSupportedException::assertSupports($this, $request);
         $details = ArrayObject::ensureArrayObject($request->getModel());
 
+        $transformCustomer = new CustomerTransformer($request->getPayment());
+        $this->gateway->execute($transformCustomer);
+
         try {
 
-            $this->gateway->execute(new PopulatePowerpayFromDetails($details));
-            $result = $this->api->generateReserveRequest($details);
+            $result = $this->api->generateReserveRequest($details, $transformCustomer);
 
-            $details['mfReference'] = $result['mfReference'];
-            $details['availableCredit'] = $result['availableCredit'];
-            $details['maximalCredit'] = $result['maximalCredit'];
-            $details['creditRefusalReason'] = $result['creditRefusalReason'];
-            $details['cardNumber'] = $result['cardNumber'];
-            $details['responseCode'] = $result['responseCode'];
+            $details['mf_reference'] = $result['mfReference'];
+            $details['available_credit'] = $result['availableCredit'];
+            $details['maximal_credit'] = $result['maximalCredit'];
+            $details['credit_refusal_reason'] = $result['creditRefusalReason'];
+            $details['card_number'] = $result['cardNumber'];
+            $details['response_code'] = $result['responseCode'];
 
         } catch (PowerpayException $e) {
             $this->populateDetailsWithError($details, $e, $request);

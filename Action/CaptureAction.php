@@ -4,6 +4,7 @@ namespace DachcomDigital\Payum\Powerpay\Action;
 
 use DachcomDigital\Payum\Powerpay\Api;
 use DachcomDigital\Payum\Powerpay\Request\Api\Activate;
+use DachcomDigital\Payum\Powerpay\Request\Api\ReserveAmount;
 use Payum\Core\Action\ActionInterface;
 use Payum\Core\ApiAwareInterface;
 use Payum\Core\ApiAwareTrait;
@@ -12,7 +13,6 @@ use Payum\Core\Exception\RequestNotSupportedException;
 use Payum\Core\Exception\UnsupportedApiException;
 use Payum\Core\GatewayAwareInterface;
 use Payum\Core\GatewayAwareTrait;
-use Payum\Core\Request\Authorize;
 use Payum\Core\Request\Capture;
 use Payum\Core\Request\GetHttpRequest;
 use Payum\Core\Security\GenericTokenFactoryAwareInterface;
@@ -53,19 +53,22 @@ class CaptureAction implements ActionInterface, ApiAwareInterface, GatewayAwareI
         RequestNotSupportedException::assertSupports($this, $request);
 
         $details = ArrayObject::ensureArrayObject($request->getModel());
+        $payment = $request->getFirstModel();
 
-        if (false == $details['clientIp']) {
+        if (false == $details['client_ip']) {
             $this->gateway->execute($httpRequest = new GetHttpRequest());
-            $details['clientIp'] = $httpRequest->clientIp;
+            $details['client_ip'] = $httpRequest->clientIp;
         }
 
-        if (false == $details['mfReference']) {
-            $this->gateway->execute(new Authorize($details));
+        if (false == $details['mf_reference']) {
+            $reserveAmount = new ReserveAmount($details);
+            $reserveAmount->setPayment($payment);
+            $this->gateway->execute($reserveAmount);
         }
 
-        if ($details['mfReference']
-            && isset($details['responseCode']) && $details['responseCode'] === StatusAction::CHECK_CREDIT_OK
-            && isset($details['creditRefusalReason']) && $details['creditRefusalReason'] === StatusAction::REFUSAL_REASON_NONE
+        if (isset($details['mf_reference'])
+            && $details['response_code'] === StatusAction::CHECK_CREDIT_OK
+            && $details['credit_refusal_reason'] === StatusAction::REFUSAL_REASON_NONE
         ) {
             $this->gateway->execute(new Activate($details));
         }

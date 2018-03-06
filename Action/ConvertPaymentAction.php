@@ -46,11 +46,12 @@ class ConvertPaymentAction implements ActionInterface, ApiAwareInterface
 
         $details = ArrayObject::ensureArrayObject($payment->getDetails());
 
-        $details['currencyCode'] = $payment->getCurrencyCode();
+        $details['currency_code'] = $payment->getCurrencyCode();
         $details['amount'] = $payment->getTotalAmount();
-        $details['externalReference'] = $payment->getNumber();
+        $details['payment_number'] = $payment->getNumber();
 
         $request->setResult((array)$details);
+
     }
 
     /**

@@ -3,9 +3,9 @@
 namespace DachcomDigital\Payum\Powerpay;
 
 use DachcomDigital\Payum\Powerpay\Action\Api\ActivateAction;
-use DachcomDigital\Payum\Powerpay\Action\Api\PopulatePowerpayFromDetailsAction;
+use DachcomDigital\Payum\Powerpay\Action\Api\ConfirmAction;
 use DachcomDigital\Payum\Powerpay\Action\Api\ReserveAmountAction;
-use DachcomDigital\Payum\Powerpay\Action\AuthorizeAction;
+use DachcomDigital\Payum\Powerpay\Action\Api\Transformer\CustomerTransformerAction;
 use DachcomDigital\Payum\Powerpay\Action\CaptureAction;
 use DachcomDigital\Payum\Powerpay\Action\ConvertPaymentAction;
 use DachcomDigital\Payum\Powerpay\Action\StatusAction;
@@ -24,13 +24,14 @@ class PowerpayGatewayFactory extends GatewayFactory
             'payum.factory_title' => 'Powerpay',
 
             'payum.action.capture'         => new CaptureAction(),
-            'payum.action.authorize'       => new AuthorizeAction(),
             'payum.action.status'          => new StatusAction(),
             'payum.action.convert_payment' => new ConvertPaymentAction(),
 
-            'payum.action.api.activate'                       => new ActivateAction(),
-            'payum.action.api.populate_powerpay_from_details' => new PopulatePowerpayFromDetailsAction(),
-            'payum.action.api.reserve_amount'                 => new ReserveAmountAction(),
+            'payum.action.api.activate'       => new ActivateAction(),
+            'payum.action.api.confirm'        => new ConfirmAction(),
+            'payum.action.api.reserve_amount' => new ReserveAmountAction(),
+
+            'payum.action.api.transformer.customer' => new CustomerTransformerAction(),
 
         ]);
 

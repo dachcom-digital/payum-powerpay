@@ -3,6 +3,7 @@
 namespace DachcomDigital\Payum\Powerpay;
 
 use DachcomDigital\Payum\Powerpay\Exception\PowerpayException;
+use DachcomDigital\Payum\Powerpay\Request\Api\Transformer\CustomerTransformer;
 use Http\Message\MessageFactory;
 use Payum\Core\Bridge\Spl\ArrayObject;
 use Payum\Core\Exception\Http\HttpException;
@@ -63,31 +64,45 @@ class Api
     }
 
     /**
-     * @param ArrayObject $details
+     * @param ArrayObject         $details
+     * @param CustomerTransformer $customerTransformer
      * @return array
      * @throws PowerpayException
      */
-    public function generateReserveRequest(ArrayObject $details)
+    public function generateReserveRequest(ArrayObject $details, CustomerTransformer $customerTransformer)
     {
-        $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><cardNumberRequest protocol="getVirtualCardNumber" version="2.9"></cardNumberRequest>');
+        $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><cardNumberRequest></cardNumberRequest>');
 
-        $xml->addChild('externalReference', $details['externalReference']);
-        $xml->addChild('orderIpAddress', $details['clientIp']);
-        $xml->addChild('gender', $details['address']['gender']);
-        $xml->addChild('firstName', $details['address']['firstName']);
-        $xml->addChild('lastName', $details['address']['lastName']);
-        $xml->addChild('street', $details['address']['street']);
-        $xml->addChild('city', $details['address']['city']);
-        $xml->addChild('zip', $details['address']['zip']);
-        $xml->addChild('country', $details['address']['country']);
-        $xml->addChild('language', $details['language']);
-        $xml->addChild('email', $details['address']['email']);
-        $xml->addChild('birthdate', $details['birthdate']);
+        $protocol = 'getVirtualCardNumber';
+        $version = '2.9';
+
+        $xml->addAttribute('protocol', $protocol);
+        $xml->addAttribute('version', $version);
+
+        // from details
+        $xml->addChild('externalReference', $details['payment_number']);
+        $xml->addChild('orderIpAddress', $details['client_ip']);
+
+        // from customer transformer
+        $xml->addChild('gender', $customerTransformer->getGender());
+        $xml->addChild('firstName', $customerTransformer->getFirstName());
+        $xml->addChild('lastName', $customerTransformer->getLastName());
+        $xml->addChild('street', $customerTransformer->getStreet());
+        $xml->addChild('city', $customerTransformer->getCity());
+        $xml->addChild('zip', $customerTransformer->getZip());
+        $xml->addChild('country', $customerTransformer->getCountry());
+        $xml->addChild('language', $customerTransformer->getLanguage());
+        $xml->addChild('email', $customerTransformer->getEmail());
+        $xml->addChild('birthdate', $customerTransformer->getBirthDate());
+
+        // from options
         $xml->addChild('merchantId', $this->options['merchantId']);
         $xml->addChild('filialId', $this->options['filialId']);
         $xml->addChild('terminalId', $this->options['terminalId']);
+
+        // from details
         $xml->addChild('amount', $details['amount']);
-        $xml->addChild('currencyCode', $details['currencyCode']);
+        $xml->addChild('currencyCode', $details['currency_code']);
 
         try {
             $request = $this->doRequest([
@@ -107,11 +122,20 @@ class Api
      */
     public function generateActivationRequest(ArrayObject $details)
     {
-        $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><FinancialRequest protocol="PaymentServer_V2_9" msgnum="11111"></FinancialRequest>');
-        $xml->addChild('CardNumber', $details['cardNumber']);
+        $msgNum = uniqid();
+        $protocol = 'PaymentServer_V2_9';
+
+        $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><FinancialRequest></FinancialRequest>');
+
+        $xml->addAttribute('protocol', $protocol);
+        $xml->addAttribute('msgnum', $msgNum);
+
+        $xml->addChild('CardNumber', $details['card_number']);
         $xml->addChild('RequestDate', date('YmdHis'));
-        $xml->addChild('TransactionType', $details['transactionType']);
-        $xml->addChild('Currency', $details['currencyCode']);
+
+        $xml->addChild('TransactionType', $details['transaction_type']);
+
+        $xml->addChild('Currency', $details['currency_code']);
         $xml->addChild('Amount', $details['amount']);
 
         $xml->addChild('MerchantId', $this->options['merchantId']);
@@ -128,6 +152,60 @@ class Api
 
         return $request;
 
+    }
+
+    /**
+     * @param ArrayObject $details
+     * @return array
+     * @throws PowerpayException
+     */
+    public function generateConfirmRequest(ArrayObject $details)
+    {
+        $msgNum = uniqid();
+        $genDate = date('YmdHis');
+        $protocol = 'PaymentServer_V2_9';
+
+        $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><Confirmation></Confirmation>');
+
+        $xml->addAttribute('protocol', $protocol);
+        $xml->addAttribute('msgnum', $msgNum);
+        $xml->addAttribute('gendate', $genDate);
+
+        $conversion = $xml->addChild('Conversation');
+
+        $financialRequest = $conversion->addChild('FinancialRequest');
+        $financialRequest->addAttribute('protocol', 'PaymentServer_V2_9');
+        $financialRequest->addAttribute('msgnum', $msgNum);
+
+        $financialRequest->addChild('RequestDate', $genDate);
+        $financialRequest->addChild('TransactionType', "debit");
+        $financialRequest->addChild('Currency', $details['currency']);
+        $financialRequest->addChild('Amount', $details['amount']);
+
+        $financialRequest->addChild('MerchantId', $this->options['merchantId']);
+        $financialRequest->addChild('FilialId', $this->options['filialId']);
+        $financialRequest->addChild('TerminalId', $this->options['terminalId']);
+
+        $response = $conversion->addChild('Response');
+        $response->addAttribute('msgnum', $msgNum);
+
+        $response->addChild('ResponseCode', $details['response_code']);
+        $response->addChild('ResponseDate', $details['response_date']);
+        $response->addChild('AuthorizationCode', $details['authorization_code']);
+        $response->addChild('Currency', $details['currency']);
+        $response->addChild('Balance', $details['balance']);
+        $response->addChild('CardNumber', $details['card_number']);
+        $response->addChild('ExpirationDate', $details['expiration_date']);
+
+        try {
+            $request = $this->doRequest([
+                'xml' => $xml->asXML()
+            ]);
+        } catch (\Exception $e) {
+            throw new PowerpayException($e->getMessage());
+        }
+
+        return $request;
     }
 
     /**
@@ -153,16 +231,12 @@ class Api
         $xmlResponse = $response->getBody()->getContents();
 
         try {
-            $xml = simplexml_load_string($xmlResponse);
-            $response = [];
-            foreach ($xml as $k => $node) {
-                $response[$k] = (string)$node;
-            }
+            $responseData = json_decode(json_encode((array)simplexml_load_string($xmlResponse)), 1);
         } catch (\Exception $e) {
             throw new LogicException("Response content is not valid xml: \n\n{$xmlResponse}");
         }
 
-        return $response;
+        return $responseData;
     }
 
     /**

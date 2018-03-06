@@ -42,24 +42,37 @@ class StatusAction implements ActionInterface
 
         $details = ArrayObject::ensureArrayObject($request->getModel());
 
-        if (isset($details['error_code'])) {
-            $request->markFailed();
-            return;
-        }
-
-        if (false == $details['responseCode']) {
+        if (false == $details['response_code']) {
             $request->markNew();
             return;
         }
 
-        switch ($details['responseCode']) {
+        // check credit response code is a string...
+        if (!is_numeric($details['response_code'])) {
 
-            case self::CHECK_XML_INVALID:
-            case self::CHECK_INTERNAL_ERROR:
-                $details['error_code'] = $details['responseCode'];
-                $details['error_message'] = $details['creditRefusalReason'];
-                $request->markFailed();
-                break;
+            switch ($details['response_code']) {
+                case self::CHECK_CREDIT_OK:
+                    switch ($details['credit_refusal_reason']) {
+                        case self::REFUSAL_REASON_UNKNOWN_ADDRESS:
+                            $request->markFailed();
+                        break;
+                        case self::REFUSAL_REASON_OTHER:
+                        $request->markFailed();
+                        break;
+                    }
+                    break;
+                case self::CHECK_XML_INVALID:
+                case self::CHECK_INTERNAL_ERROR:
+                    $request->markFailed();
+                    break;
+            }
+
+            return;
+
+        }
+
+        switch ($details['response_code']) {
+
             case self::APPROVED:
                 $request->markAuthorized();
                 break;
