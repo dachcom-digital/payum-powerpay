@@ -3,6 +3,7 @@
 namespace DachcomDigital\Payum\Powerpay;
 
 use DachcomDigital\Payum\Powerpay\Action\Api\ActivateAction;
+use DachcomDigital\Payum\Powerpay\Action\Api\CancelAction;
 use DachcomDigital\Payum\Powerpay\Action\Api\ConfirmAction;
 use DachcomDigital\Payum\Powerpay\Action\Api\ReserveAmountAction;
 use DachcomDigital\Payum\Powerpay\Action\Api\Transformer\CustomerTransformerAction;
@@ -29,6 +30,7 @@ class PowerpayGatewayFactory extends GatewayFactory
 
             'payum.action.api.activate'       => new ActivateAction(),
             'payum.action.api.confirm'        => new ConfirmAction(),
+            'payum.action.api.cancel'         => new CancelAction(),
             'payum.action.api.reserve_amount' => new ReserveAmountAction(),
 
             'payum.action.api.transformer.customer' => new CustomerTransformerAction(),

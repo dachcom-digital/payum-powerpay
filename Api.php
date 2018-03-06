@@ -174,11 +174,11 @@ class Api
         $conversion = $xml->addChild('Conversation');
 
         $financialRequest = $conversion->addChild('FinancialRequest');
-        $financialRequest->addAttribute('protocol', 'PaymentServer_V2_9');
+        $financialRequest->addAttribute('protocol', $protocol);
         $financialRequest->addAttribute('msgnum', $msgNum);
 
         $financialRequest->addChild('RequestDate', $genDate);
-        $financialRequest->addChild('TransactionType', "debit");
+        $financialRequest->addChild('TransactionType', $details['transaction_type']);
         $financialRequest->addChild('Currency', $details['currency']);
         $financialRequest->addChild('Amount', $details['amount']);
 
@@ -194,6 +194,60 @@ class Api
         $response->addChild('AuthorizationCode', $details['authorization_code']);
         $response->addChild('Currency', $details['currency']);
         $response->addChild('Balance', $details['balance']);
+        $response->addChild('CardNumber', $details['card_number']);
+        $response->addChild('ExpirationDate', $details['expiration_date']);
+
+        try {
+            $request = $this->doRequest([
+                'xml' => $xml->asXML()
+            ]);
+        } catch (\Exception $e) {
+            throw new PowerpayException($e->getMessage());
+        }
+
+        return $request;
+    }
+
+    /**
+     * @param ArrayObject $details
+     * @return array
+     * @throws PowerpayException
+     */
+    public function generateCancelRequest(ArrayObject $details)
+    {
+        $msgNum = uniqid();
+        $genDate = date('YmdHis');
+        $protocol = 'PaymentServer_V2_9';
+
+        $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><Confirmation></Confirmation>');
+
+        $xml->addAttribute('protocol', $protocol);
+        $xml->addAttribute('msgnum', $msgNum);
+        $xml->addAttribute('gendate', $genDate);
+
+        $conversion = $xml->addChild('Conversation');
+
+        $financialRequest = $conversion->addChild('FinancialRequest');
+        $financialRequest->addAttribute('protocol', $protocol);
+        $financialRequest->addAttribute('msgnum', $msgNum);
+
+        $financialRequest->addChild('RequestDate', $genDate);
+        $financialRequest->addChild('TransactionType', $details['transaction_type']);
+        $financialRequest->addChild('Currency', $details['currency']);
+        $financialRequest->addChild('Amount', 0);
+
+        $financialRequest->addChild('MerchantId', $this->options['merchantId']);
+        $financialRequest->addChild('FilialId', $this->options['filialId']);
+        $financialRequest->addChild('TerminalId', $this->options['terminalId']);
+
+        $response = $conversion->addChild('Response');
+        $response->addAttribute('msgnum', $msgNum);
+
+        $response->addChild('ResponseCode', $details['response_code']);
+        $response->addChild('ResponseDate', $details['response_date']);
+        $response->addChild('AuthorizationCode', $details['authorization_code']);
+        $response->addChild('Currency', $details['currency']);
+        $response->addChild('Balance', 0);
         $response->addChild('CardNumber', $details['card_number']);
         $response->addChild('ExpirationDate', $details['expiration_date']);
 
