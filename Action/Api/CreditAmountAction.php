@@ -4,8 +4,8 @@ namespace DachcomDigital\Payum\Powerpay\Action\Api;
 
 use DachcomDigital\Payum\Powerpay\Api;
 use DachcomDigital\Payum\Powerpay\Exception\PowerpayException;
-use DachcomDigital\Payum\Powerpay\Request\Api\ReserveAmount;
-use DachcomDigital\Payum\Powerpay\Request\Api\Transformer\CustomerTransformer;
+use DachcomDigital\Payum\Powerpay\Request\Api\Cancel;
+use DachcomDigital\Payum\Powerpay\Request\Api\CreditAmount;
 use Payum\Core\Action\ActionInterface;
 use Payum\Core\ApiAwareInterface;
 use Payum\Core\Bridge\Spl\ArrayObject;
@@ -14,7 +14,7 @@ use Payum\Core\Exception\UnsupportedApiException;
 use Payum\Core\GatewayAwareInterface;
 use Payum\Core\GatewayAwareTrait;
 
-class ReserveAmountAction implements ActionInterface, GatewayAwareInterface, ApiAwareInterface
+class CreditAmountAction implements ActionInterface, GatewayAwareInterface, ApiAwareInterface
 {
     use GatewayAwareTrait;
     use PowerpayAwareTrait;
@@ -36,28 +36,33 @@ class ReserveAmountAction implements ActionInterface, GatewayAwareInterface, Api
     }
 
     /**
-     * {@inheritDoc}
-     *
-     * @param ReserveAmount $request
+     * @param Cancel $request
      */
     public function execute($request)
     {
         RequestNotSupportedException::assertSupports($this, $request);
-        $details = ArrayObject::ensureArrayObject($request->getModel());
 
-        $transformCustomer = new CustomerTransformer($request->getPayment());
-        $this->gateway->execute($transformCustomer);
+        $details = ArrayObject::ensureArrayObject($request->getModel());
+        $details->validateNotEmpty(['card_number']);
+
+        //set transaction type
+        $details['transaction_type'] = 'credit';
 
         try {
 
-            $result = $this->api->generateReserveRequest($details, $transformCustomer);
+            $resultData = [];
 
-            $details['available_credit'] = isset($result['availableCredit']) ? $result['availableCredit'] : false;
-            $details['maximal_credit'] = isset($result['maximalCredit']) ? $result['maximalCredit'] : false;
-            $details['card_number'] = isset($result['cardNumber']) ? $result['cardNumber'] : false;
-            $details['payment_models'] = isset($result['paymentModels']) ? $result['paymentModels'] : false;
-            $details['response_code'] = isset($result['responseCode']) ? $result['responseCode'] : false;
-            $details['credit_refusal_reason'] = isset($result['creditRefusalReason']) ? $result['creditRefusalReason'] : false;
+            $result = $this->api->generateCreditRequest($details);
+
+            $resultData['credit_response_code'] = $result['ResponseCode'];
+            $resultData['credit_response_date'] = $result['ResponseDate'];
+            $resultData['credit_authorization_code'] = $result['AuthorizationCode'];
+            $resultData['credit_currency'] = $result['Currency'];
+            $resultData['credit_balance'] = $result['Balance'];
+            $resultData['credit_card_number'] = $result['CardNumber'];
+            $resultData['credit_expiration_date'] = $result['ExpirationDate'];
+
+            $request->setResult($resultData);
 
         } catch (PowerpayException $e) {
             $this->populateDetailsWithError($details, $e, $request);
@@ -70,7 +75,7 @@ class ReserveAmountAction implements ActionInterface, GatewayAwareInterface, Api
     public function supports($request)
     {
         return
-            $request instanceof ReserveAmount &&
+            $request instanceof CreditAmount &&
             $request->getModel() instanceof \ArrayAccess;
     }
 }

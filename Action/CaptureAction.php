@@ -4,6 +4,7 @@ namespace DachcomDigital\Payum\Powerpay\Action;
 
 use DachcomDigital\Payum\Powerpay\Api;
 use DachcomDigital\Payum\Powerpay\Request\Api\Activate;
+use DachcomDigital\Payum\Powerpay\Request\Api\Confirm;
 use DachcomDigital\Payum\Powerpay\Request\Api\ReserveAmount;
 use Payum\Core\Action\ActionInterface;
 use Payum\Core\ApiAwareInterface;
@@ -60,17 +61,26 @@ class CaptureAction implements ActionInterface, ApiAwareInterface, GatewayAwareI
             $details['client_ip'] = $httpRequest->clientIp;
         }
 
-        if (false == $details['mf_reference']) {
+        if (!isset($details['card_number']) || $details['card_number'] === false) {
             $reserveAmount = new ReserveAmount($details);
             $reserveAmount->setPayment($payment);
             $this->gateway->execute($reserveAmount);
         }
 
-        if (isset($details['mf_reference'])
+        if (isset($details['card_number']) && $details['card_number'] !== false
             && $details['response_code'] === StatusAction::CHECK_CREDIT_OK
             && $details['credit_refusal_reason'] === StatusAction::REFUSAL_REASON_NONE
         ) {
             $this->gateway->execute(new Activate($details));
+        }
+
+        if (isset($details['card_number']) && $details['card_number'] !== false
+            && $details['response_code'] === StatusAction::APPROVED
+            && $this->api->getConfirmationMethod() === 'instant'
+        ) {
+            $confirm = new Confirm($request->getToken());
+            $confirm->setModel($details);
+            $this->gateway->execute($confirm);
         }
     }
 

@@ -48,6 +48,7 @@ class ActivateAction implements ActionInterface, GatewayAwareInterface, ApiAware
 
         //set transaction type
         $details['transaction_type'] = 'debit';
+        //$details['payment_model'] = ''; // not implemented
 
         try {
             $result = $this->api->generateActivationRequest($details);

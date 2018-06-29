@@ -5,6 +5,7 @@ namespace DachcomDigital\Payum\Powerpay;
 use DachcomDigital\Payum\Powerpay\Action\Api\ActivateAction;
 use DachcomDigital\Payum\Powerpay\Action\Api\CancelAction;
 use DachcomDigital\Payum\Powerpay\Action\Api\ConfirmAction;
+use DachcomDigital\Payum\Powerpay\Action\Api\CreditAmountAction;
 use DachcomDigital\Payum\Powerpay\Action\Api\ReserveAmountAction;
 use DachcomDigital\Payum\Powerpay\Action\Api\Transformer\CustomerTransformerAction;
 use DachcomDigital\Payum\Powerpay\Action\CaptureAction;
@@ -32,6 +33,7 @@ class PowerpayGatewayFactory extends GatewayFactory
             'payum.action.api.confirm'        => new ConfirmAction(),
             'payum.action.api.cancel'         => new CancelAction(),
             'payum.action.api.reserve_amount' => new ReserveAmountAction(),
+            'payum.action.api.credit_amount'  => new CreditAmountAction(),
 
             'payum.action.api.transformer.customer' => new CustomerTransformerAction(),
 
@@ -49,7 +51,8 @@ class PowerpayGatewayFactory extends GatewayFactory
                 'password',
                 'merchantId',
                 'filialId',
-                'terminalId'
+                'terminalId',
+                'confirmationMethod'
             ];
 
             $config['payum.api'] = function (ArrayObject $config) {
@@ -57,12 +60,13 @@ class PowerpayGatewayFactory extends GatewayFactory
 
                 return new Api(
                     [
-                        'sandbox'    => $config['environment'] === Api::TEST,
-                        'username'   => $config['username'],
-                        'password'   => $config['password'],
-                        'merchantId' => $config['merchantId'],
-                        'filialId'   => $config['filialId'],
-                        'terminalId' => $config['terminalId']
+                        'sandbox'            => $config['environment'] === Api::TEST,
+                        'username'           => $config['username'],
+                        'password'           => $config['password'],
+                        'merchantId'         => $config['merchantId'],
+                        'filialId'           => $config['filialId'],
+                        'terminalId'         => $config['terminalId'],
+                        'confirmationMethod' => $config['confirmationMethod']
                     ],
                     $config['payum.http_client'],
                     $config['httplug.message_factory']

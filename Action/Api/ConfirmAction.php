@@ -49,6 +49,7 @@ class ConfirmAction implements ActionInterface, GatewayAwareInterface, ApiAwareI
         try {
             $result = $this->api->generateConfirmRequest($details);
 
+            $resultData = [];
             $resultData['response_date'] = $result['ResponseDate'];
             $resultData['skipped'] = false;
 
@@ -56,6 +57,7 @@ class ConfirmAction implements ActionInterface, GatewayAwareInterface, ApiAwareI
             if (isset($result['ResponseCode'])) {
                 $resultData['response_code'] = $result['ResponseCode'];
             } else {
+
                 $resultData['card_statistics_name'] = $result['CardStatistics']['@attributes']['name'];
                 $resultData['card_statistics_type'] = $result['CardStatistics']['@attributes']['type'];
                 $resultData['card_statistics_currency'] = $result['CardStatistics']['@attributes']['currency'];
