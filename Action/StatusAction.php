@@ -98,22 +98,21 @@ class StatusAction implements ActionInterface
 
         // card number request response codes are string
         if (!is_numeric($details['response_code'])) {
-
             switch ($details['response_code']) {
                 case self::CHECK_CREDIT_OK:
                     switch ($details['credit_refusal_reason']) {
                         case self::REFUSAL_REASON_NONE:
                             $request->markAuthorized();
-                        break;
+                            break;
                         case self::REFUSAL_REASON_PENDING:
                             $request->markAuthorized();
-                        break;
+                            break;
                         case self::REFUSAL_REASON_UNKNOWN_ADDRESS:
                             $request->markFailed();
-                        break;
+                            break;
                         case self::REFUSAL_REASON_OTHER:
-                        $request->markFailed();
-                        break;
+                            $request->markFailed();
+                            break;
                     }
                     break;
                 case self::CHECK_XML_INVALID:
@@ -126,11 +125,14 @@ class StatusAction implements ActionInterface
 
         }
 
-         // financial request response codes are numeric
+        // financial request response codes are numeric
         switch ($details['response_code']) {
-
             case self::APPROVED:
-                $request->markCaptured();
+                if ($details['payment_confirmed'] === true) {
+                    $request->markCaptured();
+                } else {
+                    $request->markAuthorized();
+                }
                 break;
             case self::UNKNOWN_CARD:
             case self::UNKNOWN_MERCHANT:

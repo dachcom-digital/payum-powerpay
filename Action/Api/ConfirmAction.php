@@ -46,6 +46,8 @@ class ConfirmAction implements ActionInterface, GatewayAwareInterface, ApiAwareI
         $details = ArrayObject::ensureArrayObject($request->getModel());
         $details->validateNotEmpty(['card_number']);
 
+        $details['payment_confirmed'] = false;
+
         try {
             $result = $this->api->generateConfirmRequest($details);
 
@@ -57,22 +59,22 @@ class ConfirmAction implements ActionInterface, GatewayAwareInterface, ApiAwareI
             if (isset($result['ResponseCode'])) {
                 $resultData['response_code'] = $result['ResponseCode'];
             } else {
-
-                $resultData['card_statistics_name'] = $result['CardStatistics']['@attributes']['name'];
-                $resultData['card_statistics_type'] = $result['CardStatistics']['@attributes']['type'];
-                $resultData['card_statistics_currency'] = $result['CardStatistics']['@attributes']['currency'];
-                $resultData['card_statistics_total_number'] = $result['CardStatistics']['Total']['@attributes']['number'];
-                $resultData['card_statistics_total_amount'] = $result['CardStatistics']['Total']['@attributes']['amount'];
-                $resultData['card_statistics_purchase_number'] = $result['CardStatistics']['Purchase']['@attributes']['number'];
-                $resultData['card_statistics_purchase_amount'] = $result['CardStatistics']['Purchase']['@attributes']['amount'];
-                $resultData['card_statistics_credit_number'] = $result['CardStatistics']['Credit']['@attributes']['number'];
-                $resultData['card_statistics_credit_amount'] = $result['CardStatistics']['Credit']['@attributes']['amount'];
-                $resultData['card_statistics_reversal_number'] = $result['CardStatistics']['Reversal']['@attributes']['number'];
-                $resultData['card_statistics_reversal_amount'] = $result['CardStatistics']['Reversal']['@attributes']['amount'];
-
                 if (isset($result['Skipped'])) {
                     $resultData['skipped'] = true;
                     $resultData['skipped_reason'] = $result['Skipped']['Reason'];
+                } else {
+                    $details['payment_confirmed'] = true;
+                    $resultData['card_statistics_name'] = $result['CardStatistics']['@attributes']['name'];
+                    $resultData['card_statistics_type'] = $result['CardStatistics']['@attributes']['type'];
+                    $resultData['card_statistics_currency'] = $result['CardStatistics']['@attributes']['currency'];
+                    $resultData['card_statistics_total_number'] = $result['CardStatistics']['Total']['@attributes']['number'];
+                    $resultData['card_statistics_total_amount'] = $result['CardStatistics']['Total']['@attributes']['amount'];
+                    $resultData['card_statistics_purchase_number'] = $result['CardStatistics']['Purchase']['@attributes']['number'];
+                    $resultData['card_statistics_purchase_amount'] = $result['CardStatistics']['Purchase']['@attributes']['amount'];
+                    $resultData['card_statistics_credit_number'] = $result['CardStatistics']['Credit']['@attributes']['number'];
+                    $resultData['card_statistics_credit_amount'] = $result['CardStatistics']['Credit']['@attributes']['amount'];
+                    $resultData['card_statistics_reversal_number'] = $result['CardStatistics']['Reversal']['@attributes']['number'];
+                    $resultData['card_statistics_reversal_amount'] = $result['CardStatistics']['Reversal']['@attributes']['amount'];
                 }
             }
 
