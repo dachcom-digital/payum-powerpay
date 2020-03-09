@@ -130,6 +130,10 @@ class Api
         $xml->addChild('email', $customerTransformer->getEmail());
         $xml->addChild('birthdate', $customerTransformer->getBirthDate());
 
+        if (!empty($customerTransformer->getPhoneNumber())) {
+            $xml->addChild('phoneNumber', $customerTransformer->getPhoneNumber());
+        }
+
         // from options
         $xml->addChild('merchantId', $this->options['merchantId']);
         $xml->addChild('filialId', $this->options['filialId']);

@@ -39,6 +39,11 @@ class CustomerTransformer extends Generic
     /**
      * @var string
      */
+    protected $phoneNumber;
+
+    /**
+     * @var string
+     */
     protected $country;
 
     /**
@@ -150,6 +155,22 @@ class CustomerTransformer extends Generic
     public function setZip(string $zip)
     {
         $this->zip = $zip;
+    }
+
+    /**
+     * @return string
+     */
+    public function getPhoneNumber(): string
+    {
+        return $this->phoneNumber;
+    }
+
+    /**
+     * @param string $phoneNumber
+     */
+    public function setPhoneNumber(string $phoneNumber)
+    {
+        $this->phoneNumber = $phoneNumber;
     }
 
     /**
