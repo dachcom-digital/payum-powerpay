@@ -5,12 +5,11 @@ namespace DachcomDigital\Payum\Powerpay\Action\Api;
 use DachcomDigital\Payum\Powerpay\Api;
 use DachcomDigital\Payum\Powerpay\Exception\PowerpayException;
 use DachcomDigital\Payum\Powerpay\Request\Api\ReserveAmount;
-use DachcomDigital\Payum\Powerpay\Request\Api\Transformer\CustomerTransformer;
 use Payum\Core\Action\ActionInterface;
 use Payum\Core\ApiAwareInterface;
+use Payum\Core\ApiAwareTrait;
 use Payum\Core\Bridge\Spl\ArrayObject;
 use Payum\Core\Exception\RequestNotSupportedException;
-use Payum\Core\Exception\UnsupportedApiException;
 use Payum\Core\GatewayAwareInterface;
 use Payum\Core\GatewayAwareTrait;
 
@@ -18,26 +17,21 @@ class ReserveAmountAction implements ActionInterface, GatewayAwareInterface, Api
 {
     use GatewayAwareTrait;
     use PowerpayAwareTrait;
+    use ApiAwareTrait {
+        setApi as _setApi;
+    }
 
-    /**
-     * @var Api
-     */
-    protected $api;
-
-    /**
-     * {@inheritDoc}
-     */
-    public function setApi($api)
+    public function __construct()
     {
-        if (false == $api instanceof Api) {
-            throw new UnsupportedApiException('Not supported.');
-        }
-        $this->api = $api;
+        $this->apiClass = Api::class;
+    }
+
+    public function setApi($api): void
+    {
+        $this->_setApi($api);
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @param ReserveAmount $request
      */
     public function execute($request)
@@ -45,29 +39,30 @@ class ReserveAmountAction implements ActionInterface, GatewayAwareInterface, Api
         RequestNotSupportedException::assertSupports($this, $request);
         $details = ArrayObject::ensureArrayObject($request->getModel());
 
-        $transformCustomer = new CustomerTransformer($request->getPayment());
-        $this->gateway->execute($transformCustomer);
+        $detailsStructured = $details->toUnsafeArray();
+        if (!array_key_exists('transformed_transaction', $detailsStructured)) {
+            $details['error'] = 'No transformed transaction found, cannot proceed';
+
+            return;
+        }
 
         try {
 
-            $result = $this->api->generateReserveRequest($details, $transformCustomer);
+            $result = $this->api->generateReserveRequest($detailsStructured['transformed_transaction']);
 
-            $details['available_credit'] = isset($result['availableCredit']) ? $result['availableCredit'] : false;
-            $details['maximal_credit'] = isset($result['maximalCredit']) ? $result['maximalCredit'] : false;
-            $details['card_number'] = isset($result['cardNumber']) ? $result['cardNumber'] : false;
-            $details['payment_models'] = isset($result['paymentModels']) ? $result['paymentModels'] : false;
-            $details['response_code'] = isset($result['responseCode']) ? $result['responseCode'] : false;
-            $details['credit_refusal_reason'] = isset($result['creditRefusalReason']) ? $result['creditRefusalReason'] : false;
+            $details['available_credit'] = $result['availableCredit'] ?? false;
+            $details['maximal_credit'] = $result['maximalCredit'] ?? false;
+            $details['card_number'] = $result['cardNumber'] ?? false;
+            $details['payment_models'] = $result['paymentModels'] ?? false;
+            $details['response_code'] = $result['responseCode'] ?? false;
+            $details['credit_refusal_reason'] = $result['creditRefusalReason'] ?? false;
 
         } catch (PowerpayException $e) {
             $this->populateDetailsWithError($details, $e, $request);
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    public function supports($request)
+    public function supports($request): bool
     {
         return
             $request instanceof ReserveAmount &&

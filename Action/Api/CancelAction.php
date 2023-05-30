@@ -5,12 +5,11 @@ namespace DachcomDigital\Payum\Powerpay\Action\Api;
 use DachcomDigital\Payum\Powerpay\Api;
 use DachcomDigital\Payum\Powerpay\Exception\PowerpayException;
 use DachcomDigital\Payum\Powerpay\Request\Api\Cancel;
-use DachcomDigital\Payum\Powerpay\Request\Api\Confirm;
 use Payum\Core\Action\ActionInterface;
 use Payum\Core\ApiAwareInterface;
+use Payum\Core\ApiAwareTrait;
 use Payum\Core\Bridge\Spl\ArrayObject;
 use Payum\Core\Exception\RequestNotSupportedException;
-use Payum\Core\Exception\UnsupportedApiException;
 use Payum\Core\GatewayAwareInterface;
 use Payum\Core\GatewayAwareTrait;
 
@@ -18,21 +17,18 @@ class CancelAction implements ActionInterface, GatewayAwareInterface, ApiAwareIn
 {
     use GatewayAwareTrait;
     use PowerpayAwareTrait;
+    use ApiAwareTrait {
+        setApi as _setApi;
+    }
 
-    /**
-     * @var Api
-     */
-    protected $api;
-
-    /**
-     * {@inheritDoc}
-     */
-    public function setApi($api)
+    public function __construct()
     {
-        if (false == $api instanceof Api) {
-            throw new UnsupportedApiException('Not supported.');
-        }
-        $this->api = $api;
+        $this->apiClass = Api::class;
+    }
+
+    public function setApi($api): void
+    {
+        $this->_setApi($api);
     }
 
     /**
@@ -43,7 +39,7 @@ class CancelAction implements ActionInterface, GatewayAwareInterface, ApiAwareIn
         RequestNotSupportedException::assertSupports($this, $request);
 
         $details = ArrayObject::ensureArrayObject($request->getModel());
-        $details->validateNotEmpty(['card_number']);
+        $details->validateNotEmpty(['card_number', 'transformed_transaction']);
 
         try {
             $result = $this->api->generateCancelRequest($details);
@@ -55,20 +51,18 @@ class CancelAction implements ActionInterface, GatewayAwareInterface, ApiAwareIn
             //there was an error.
             if (isset($result['ResponseCode'])) {
                 $resultData['cancel_response_code'] = $result['ResponseCode'];
+            } elseif (isset($result['Skipped'])) {
+                $resultData['cancel_skipped'] = true;
+                $resultData['cancel_skipped_reason'] = $result['Skipped']['Reason'];
             } else {
-                if (isset($result['Skipped'])) {
-                    $resultData['cancel_skipped'] = true;
-                    $resultData['cancel_skipped_reason'] = $result['Skipped']['Reason'];
-                } else {
-                    $resultData['cancel_card_statistics_total_number'] = $result['CardStatistics']['Total']['@attributes']['number'];
-                    $resultData['cancel_card_statistics_total_amount'] = $result['CardStatistics']['Total']['@attributes']['amount'];
-                    $resultData['cancel_card_statistics_purchase_number'] = $result['CardStatistics']['Purchase']['@attributes']['number'];
-                    $resultData['cancel_card_statistics_purchase_amount'] = $result['CardStatistics']['Purchase']['@attributes']['amount'];
-                    $resultData['cancel_card_statistics_credit_number'] = $result['CardStatistics']['Credit']['@attributes']['number'];
-                    $resultData['cancel_card_statistics_credit_amount'] = $result['CardStatistics']['Credit']['@attributes']['amount'];
-                    $resultData['cancel_card_statistics_reversal_number'] = $result['CardStatistics']['Reversal']['@attributes']['number'];
-                    $resultData['cancel_card_statistics_reversal_amount'] = $result['CardStatistics']['Reversal']['@attributes']['amount'];
-                }
+                $resultData['cancel_card_statistics_total_number'] = $result['CardStatistics']['Total']['@attributes']['number'];
+                $resultData['cancel_card_statistics_total_amount'] = $result['CardStatistics']['Total']['@attributes']['amount'];
+                $resultData['cancel_card_statistics_purchase_number'] = $result['CardStatistics']['Purchase']['@attributes']['number'];
+                $resultData['cancel_card_statistics_purchase_amount'] = $result['CardStatistics']['Purchase']['@attributes']['amount'];
+                $resultData['cancel_card_statistics_credit_number'] = $result['CardStatistics']['Credit']['@attributes']['number'];
+                $resultData['cancel_card_statistics_credit_amount'] = $result['CardStatistics']['Credit']['@attributes']['amount'];
+                $resultData['cancel_card_statistics_reversal_number'] = $result['CardStatistics']['Reversal']['@attributes']['number'];
+                $resultData['cancel_card_statistics_reversal_amount'] = $result['CardStatistics']['Reversal']['@attributes']['amount'];
             }
 
             $request->setResult($resultData);
@@ -78,9 +72,6 @@ class CancelAction implements ActionInterface, GatewayAwareInterface, ApiAwareIn
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function supports($request)
     {
         return

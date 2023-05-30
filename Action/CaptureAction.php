@@ -11,7 +11,6 @@ use Payum\Core\ApiAwareInterface;
 use Payum\Core\ApiAwareTrait;
 use Payum\Core\Bridge\Spl\ArrayObject;
 use Payum\Core\Exception\RequestNotSupportedException;
-use Payum\Core\Exception\UnsupportedApiException;
 use Payum\Core\GatewayAwareInterface;
 use Payum\Core\GatewayAwareTrait;
 use Payum\Core\Request\Capture;
@@ -19,34 +18,25 @@ use Payum\Core\Request\GetHttpRequest;
 use Payum\Core\Security\GenericTokenFactoryAwareInterface;
 use Payum\Core\Security\GenericTokenFactoryAwareTrait;
 
-/**
- * @property Api $api
- */
 class CaptureAction implements ActionInterface, ApiAwareInterface, GatewayAwareInterface, GenericTokenFactoryAwareInterface
 {
-    use ApiAwareTrait;
     use GatewayAwareTrait;
     use GenericTokenFactoryAwareTrait;
+    use ApiAwareTrait {
+        setApi as _setApi;
+    }
 
-    /**
-     * @var Api
-     */
-    protected $api;
-
-    /**
-     * {@inheritDoc}
-     */
-    public function setApi($api)
+    public function __construct()
     {
-        if (false == $api instanceof Api) {
-            throw new UnsupportedApiException('Not supported.');
-        }
-        $this->api = $api;
+        $this->apiClass = Api::class;
+    }
+
+    public function setApi($api): void
+    {
+        $this->_setApi($api);
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @param Capture $request
      */
     public function execute($request)
@@ -54,27 +44,19 @@ class CaptureAction implements ActionInterface, ApiAwareInterface, GatewayAwareI
         RequestNotSupportedException::assertSupports($this, $request);
 
         $details = ArrayObject::ensureArrayObject($request->getModel());
-        $payment = $request->getFirstModel();
 
-        if (false == $details['client_ip']) {
-            $this->gateway->execute($httpRequest = new GetHttpRequest());
-            $details['client_ip'] = $httpRequest->clientIp;
+        if (!$details->offsetExists('card_number')) {
+            $this->gateway->execute(new ReserveAmount($details));
         }
 
-        if (!isset($details['card_number']) || $details['card_number'] === false) {
-            $reserveAmount = new ReserveAmount($details);
-            $reserveAmount->setPayment($payment);
-            $this->gateway->execute($reserveAmount);
-        }
-
-        if (isset($details['card_number']) && $details['card_number'] !== false
+        if ($details->offsetExists('card_number')
             && $details['response_code'] === StatusAction::CHECK_CREDIT_OK
             && $details['credit_refusal_reason'] === StatusAction::REFUSAL_REASON_NONE
         ) {
             $this->gateway->execute(new Activate($details));
         }
 
-        if (isset($details['card_number']) && $details['card_number'] !== false
+        if ($details->offsetExists('card_number')
             && $details['response_code'] === StatusAction::APPROVED
             && $this->api->getConfirmationMethod() === 'instant'
         ) {
@@ -84,9 +66,6 @@ class CaptureAction implements ActionInterface, ApiAwareInterface, GatewayAwareI
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function supports($request)
     {
         return

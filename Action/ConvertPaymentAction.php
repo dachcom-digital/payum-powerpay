@@ -3,38 +3,35 @@
 namespace DachcomDigital\Payum\Powerpay\Action;
 
 use DachcomDigital\Payum\Powerpay\Api;
+use DachcomDigital\Payum\Powerpay\Request\Api\TransactionTransformer;
 use Payum\Core\Action\ActionInterface;
 use Payum\Core\ApiAwareInterface;
 use Payum\Core\ApiAwareTrait;
 use Payum\Core\Bridge\Spl\ArrayObject;
 use Payum\Core\Exception\RequestNotSupportedException;
-use Payum\Core\Exception\UnsupportedApiException;
+use Payum\Core\GatewayAwareInterface;
+use Payum\Core\GatewayAwareTrait;
 use Payum\Core\Model\PaymentInterface;
 use Payum\Core\Request\Convert;
 
-class ConvertPaymentAction implements ActionInterface, ApiAwareInterface
+class ConvertPaymentAction implements ActionInterface, ApiAwareInterface, GatewayAwareInterface
 {
-    use ApiAwareTrait;
+    use GatewayAwareTrait;
+    use ApiAwareTrait {
+        setApi as _setApi;
+    }
 
-    /**
-     * @var Api
-     */
-    protected $api;
+    public function __construct()
+    {
+        $this->apiClass = Api::class;
+    }
 
-    /**
-     * {@inheritDoc}
-     */
     public function setApi($api)
     {
-        if (false == $api instanceof Api) {
-            throw new UnsupportedApiException('Not supported.');
-        }
-        $this->api = $api;
+        $this->_setApi($api);
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @param Convert $request
      */
     public function execute($request)
@@ -43,25 +40,19 @@ class ConvertPaymentAction implements ActionInterface, ApiAwareInterface
 
         /** @var PaymentInterface $payment */
         $payment = $request->getSource();
-
         $details = ArrayObject::ensureArrayObject($payment->getDetails());
 
-        $details['currency_code'] = $payment->getCurrencyCode();
-        $details['amount'] = $payment->getTotalAmount();
-        $details['payment_number'] = $payment->getNumber();
+        $this->gateway->execute($transformedTransaction = new TransactionTransformer($request->getSource()));
+
+        $details['transformed_transaction'] = $transformedTransaction->toArray();
 
         $request->setResult((array)$details);
-
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function supports($request)
     {
         return
             $request instanceof Convert &&
-            $request->getSource() instanceof PaymentInterface &&
-            $request->getTo() == 'array';
+            $request->getSource() instanceof PaymentInterface;
     }
 }

@@ -3,8 +3,8 @@
 namespace DachcomDigital\Payum\Powerpay;
 
 use DachcomDigital\Payum\Powerpay\Exception\PowerpayException;
-use DachcomDigital\Payum\Powerpay\Request\Api\Transformer\CustomerTransformer;
 use Http\Message\MessageFactory;
+use Payum\Core\Exception\InvalidArgumentException;
 use Payum\Core\Bridge\Spl\ArrayObject;
 use Payum\Core\Exception\Http\HttpException;
 use Payum\Core\Exception\LogicException;
@@ -12,35 +12,16 @@ use Payum\Core\HttpClientInterface;
 
 class Api
 {
-    /**
-     * @var HttpClientInterface
-     */
-    protected $client;
+    protected HttpClientInterface $client;
+    protected MessageFactory $messageFactory;
+
+    public const TEST = 'test';
+    public const PRODUCTION = 'production';
+
+    protected array $options = [];
 
     /**
-     * @var MessageFactory
-     */
-    protected $messageFactory;
-
-    const TEST = 'test';
-
-    const PRODUCTION = 'production';
-
-    // parameters that will be included in the SHA-OUT Hash
-    protected $signatureParams = [
-
-    ];
-
-    protected $options = [
-        'environment' => self::TEST
-    ];
-
-    /**
-     * @param array               $options
-     * @param HttpClientInterface $client
-     * @param MessageFactory      $messageFactory
-     *
-     * @throws \Payum\Core\Exception\InvalidArgumentException if an option is invalid
+     * @throws InvalidArgumentException
      */
     public function __construct(array $options, HttpClientInterface $client, MessageFactory $messageFactory)
     {
@@ -55,29 +36,24 @@ class Api
             'confirmationMethod'
         ]);
 
-        if (false == is_bool($options['sandbox'])) {
+        if (!is_bool($options['sandbox'])) {
             throw new LogicException('The boolean sandbox option must be set.');
         }
 
-        $this->options = $options;
+        $this->options = $options->toUnsafeArray();
         $this->client = $client;
         $this->messageFactory = $messageFactory;
     }
 
-    /**
-     * @return string
-     */
-    public function getConfirmationMethod()
+    public function getConfirmationMethod(): string
     {
         return $this->options['confirmationMethod'];
     }
 
     /**
-     * @param ArrayObject $details
-     * @return array
      * @throws PowerpayException
      */
-    public function generatePaymentModelRequest(ArrayObject $details)
+    public function generatePaymentModelRequest(ArrayObject $details): array
     {
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><paymentModelsRequest></paymentModelsRequest>');
 
@@ -87,24 +63,18 @@ class Api
         $xml->addChild('terminalId', $this->options['terminalId']);
 
         try {
-            $request = $this->doPaymentModelRequest([
-                'xml' => $xml->asXML()
-            ]);
+            $request = $this->doPaymentModelRequest(['xml' => $xml->asXML()]);
         } catch (\Exception $e) {
             throw new PowerpayException($e->getMessage());
         }
 
         return $request;
-
     }
 
     /**
-     * @param ArrayObject         $details
-     * @param CustomerTransformer $customerTransformer
-     * @return array
      * @throws PowerpayException
      */
-    public function generateReserveRequest(ArrayObject $details, CustomerTransformer $customerTransformer)
+    public function generateReserveRequest(array $transformedTransaction): array
     {
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><cardNumberRequest></cardNumberRequest>');
 
@@ -114,24 +84,38 @@ class Api
         $xml->addAttribute('protocol', $protocol);
         $xml->addAttribute('version', $version);
 
-        // from details
-        $xml->addChild('externalReference', $details['payment_number']);
-        $xml->addChild('orderIpAddress', $details['client_ip']);
+        $mapping = [
+            'externalReference' => 'id',
+            'amount'            => 'amount',
+            'currencyCode'      => 'currency',
+            'language'          => 'language',
+            'orderIpAddress'    => 'clientIp',
+            'gender'            => 'gender',
+            'firstName'         => 'firstName',
+            'lastName'          => 'lastName',
+            'street'            => 'street',
+            'city'              => 'city',
+            'zip'               => 'zip',
+            'country'           => 'country',
+            'email'             => 'email',
+            'birthdate'         => 'birthdate',
+            'phoneNumber'       => 'phoneNumber',
+        ];
 
-        // from customer transformer
-        $xml->addChild('gender', $customerTransformer->getGender());
-        $xml->addChild('firstName', $customerTransformer->getFirstName());
-        $xml->addChild('lastName', $customerTransformer->getLastName());
-        $xml->addChild('street', $customerTransformer->getStreet());
-        $xml->addChild('city', $customerTransformer->getCity());
-        $xml->addChild('zip', $customerTransformer->getZip());
-        $xml->addChild('country', $customerTransformer->getCountry());
-        $xml->addChild('language', $customerTransformer->getLanguage());
-        $xml->addChild('email', $customerTransformer->getEmail());
-        $xml->addChild('birthdate', $customerTransformer->getBirthDate());
+        foreach ($mapping as $targetRef => $sourceRef) {
 
-        if (!empty($customerTransformer->getPhoneNumber())) {
-            $xml->addChild('phoneNumber', $customerTransformer->getPhoneNumber());
+            if (!array_key_exists($sourceRef, $transformedTransaction)) {
+                continue;
+            }
+
+            $data = $transformedTransaction[$sourceRef];
+
+            if ($data === null) {
+                continue;
+            }
+
+            $xml->addChild($targetRef, $data);
+
         }
 
         // from options
@@ -139,14 +123,8 @@ class Api
         $xml->addChild('filialId', $this->options['filialId']);
         $xml->addChild('terminalId', $this->options['terminalId']);
 
-        // from details
-        $xml->addChild('amount', $details['amount']);
-        $xml->addChild('currencyCode', $details['currency_code']);
-
         try {
-            $request = $this->doRequest([
-                'xml' => $xml->asXML()
-            ]);
+            $request = $this->doRequest(['xml' => $xml->asXML()]);
         } catch (\Exception $e) {
             throw new PowerpayException($e->getMessage());
         }
@@ -155,16 +133,16 @@ class Api
     }
 
     /**
-     * @param ArrayObject $details
-     * @return array
      * @throws PowerpayException
      */
-    public function generateActivationRequest(ArrayObject $details)
+    public function generateActivationRequest(ArrayObject $details): array
     {
-        $msgNum = uniqid();
+        $msgNum = uniqid('', false);
         $protocol = 'PaymentServer_V2_9';
 
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><FinancialRequest></FinancialRequest>');
+
+        $transformedTransaction = $details['transformed_transaction'];
 
         $xml->addAttribute('protocol', $protocol);
         $xml->addAttribute('msgnum', $msgNum);
@@ -178,37 +156,34 @@ class Api
             $xml->addChild('PaymentModel', $details['payment_model']);
         }
 
-        $xml->addChild('Currency', $details['currency_code']);
-        $xml->addChild('Amount', $details['amount']);
+        $xml->addChild('Currency', $transformedTransaction['currency']);
+        $xml->addChild('Amount', $transformedTransaction['amount']);
 
         $xml->addChild('MerchantId', $this->options['merchantId']);
         $xml->addChild('FilialId', $this->options['filialId']);
         $xml->addChild('TerminalId', $this->options['terminalId']);
 
         try {
-            $request = $this->doRequest([
-                'xml' => $xml->asXML()
-            ]);
+            $request = $this->doRequest(['xml' => $xml->asXML()]);
         } catch (\Exception $e) {
             throw new PowerpayException($e->getMessage());
         }
 
         return $request;
-
     }
 
     /**
-     * @param ArrayObject $details
-     * @return array
      * @throws PowerpayException
      */
-    public function generateConfirmRequest(ArrayObject $details)
+    public function generateConfirmRequest(ArrayObject $details): array
     {
-        $msgNum = uniqid();
+        $msgNum = uniqid('', false);
         $genDate = date('YmdHis');
         $protocol = 'PaymentServer_V2_9';
 
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><Confirmation></Confirmation>');
+
+        $transformedTransaction = $details['transformed_transaction'];
 
         $xml->addAttribute('protocol', $protocol);
         $xml->addAttribute('msgnum', $msgNum);
@@ -222,8 +197,8 @@ class Api
 
         $financialRequest->addChild('RequestDate', $genDate);
         $financialRequest->addChild('TransactionType', $details['transaction_type']);
-        $financialRequest->addChild('Currency', $details['currency']);
-        $financialRequest->addChild('Amount', $details['amount']);
+        $financialRequest->addChild('Currency', $transformedTransaction['currency']);
+        $financialRequest->addChild('Amount', $transformedTransaction['amount']);
 
         $financialRequest->addChild('MerchantId', $this->options['merchantId']);
         $financialRequest->addChild('FilialId', $this->options['filialId']);
@@ -235,15 +210,13 @@ class Api
         $response->addChild('ResponseCode', $details['response_code']);
         $response->addChild('ResponseDate', $details['response_date']);
         $response->addChild('AuthorizationCode', $details['authorization_code']);
-        $response->addChild('Currency', $details['currency']);
         $response->addChild('Balance', $details['balance']);
         $response->addChild('CardNumber', $details['card_number']);
         $response->addChild('ExpirationDate', $details['expiration_date']);
+        $response->addChild('Currency', $transformedTransaction['currency']);
 
         try {
-            $request = $this->doRequest([
-                'xml' => $xml->asXML()
-            ]);
+            $request = $this->doRequest(['xml' => $xml->asXML()]);
         } catch (\Exception $e) {
             throw new PowerpayException($e->getMessage());
         }
@@ -252,17 +225,17 @@ class Api
     }
 
     /**
-     * @param ArrayObject $details
-     * @return array
      * @throws PowerpayException
      */
-    public function generateCancelRequest(ArrayObject $details)
+    public function generateCancelRequest(ArrayObject $details): array
     {
-        $msgNum = uniqid();
+        $msgNum = uniqid('', false);
         $genDate = date('YmdHis');
         $protocol = 'PaymentServer_V2_9';
 
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><Confirmation></Confirmation>');
+
+        $transformedTransaction = $details['transformed_transaction'];
 
         $xml->addAttribute('protocol', $protocol);
         $xml->addAttribute('msgnum', $msgNum);
@@ -276,7 +249,7 @@ class Api
 
         $financialRequest->addChild('RequestDate', $genDate);
         $financialRequest->addChild('TransactionType', $details['transaction_type']);
-        $financialRequest->addChild('Currency', $details['currency']);
+        $financialRequest->addChild('Currency', $transformedTransaction['currency']);
         $financialRequest->addChild('Amount', 0);
 
         $financialRequest->addChild('MerchantId', $this->options['merchantId']);
@@ -289,15 +262,13 @@ class Api
         $response->addChild('ResponseCode', $details['response_code']);
         $response->addChild('ResponseDate', $details['response_date']);
         $response->addChild('AuthorizationCode', $details['authorization_code']);
-        $response->addChild('Currency', $details['currency']);
         $response->addChild('Balance', 0);
         $response->addChild('CardNumber', $details['card_number']);
         $response->addChild('ExpirationDate', $details['expiration_date']);
+        $response->addChild('Currency', $transformedTransaction['currency']);
 
         try {
-            $request = $this->doRequest([
-                'xml' => $xml->asXML()
-            ]);
+            $request = $this->doRequest(['xml' => $xml->asXML()]);
         } catch (\Exception $e) {
             throw new PowerpayException($e->getMessage());
         }
@@ -306,16 +277,16 @@ class Api
     }
 
     /**
-     * @param ArrayObject $details
-     * @return array
      * @throws PowerpayException
      */
-    public function generateCreditRequest(ArrayObject $details)
+    public function generateCreditRequest(ArrayObject $details): array
     {
-        $msgNum = uniqid();
+        $msgNum = uniqid('', false);
         $protocol = 'PaymentServer_V2_9';
 
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><FinancialRequest></FinancialRequest>');
+
+        $transformedTransaction = $details['transformed_transaction'];
 
         $xml->addAttribute('protocol', $protocol);
         $xml->addAttribute('msgnum', $msgNum);
@@ -325,8 +296,8 @@ class Api
 
         $xml->addChild('TransactionType', $details['transaction_type']);
 
-        $xml->addChild('Currency', $details['currency_code']);
-        $xml->addChild('Amount', $details['amount']);
+        $xml->addChild('Currency', $transformedTransaction['currency']);
+        $xml->addChild('Amount', $transformedTransaction['amount']);
         $xml->addChild('ExternalReference', $details['payment_number']);
 
         $xml->addChild('MerchantId', $this->options['merchantId']);
@@ -334,9 +305,7 @@ class Api
         $xml->addChild('TerminalId', $this->options['terminalId']);
 
         try {
-            $request = $this->doRequest([
-                'xml' => $xml->asXML()
-            ]);
+            $request = $this->doRequest(['xml' => $xml->asXML()]);
         } catch (\Exception $e) {
             throw new PowerpayException($e->getMessage());
         }
@@ -344,30 +313,39 @@ class Api
         return $request;
     }
 
-    /**
-     * @param array $fields
-     *
-     * @return array
-     */
-    protected function doRequest(array $fields)
+    private function doRequest(array $fields): array
     {
-        $headers = [
+        return $this->request([
+            'Content-Type' => 'application/x-www-form-urlencoded'
+        ], $this->getApiEndpoint(), $fields);
+    }
+
+    private function doPaymentModelRequest(array $fields): array
+    {
+        return $this->request([
+            'Content-Type' => 'text/xml',
+            'Accept'       => 'application/xml',
+        ], $this->getPaymentModelRequestApiEndpoint(), $fields);
+    }
+
+    private function request(array $additionalHeaders, string $endpoint, array $fields)
+    {
+        $headers = array_merge([
             'Authorization' => 'Basic ' . base64_encode($this->options['username'] . ':' . $this->options['password']),
-            'Content-Type'  => 'application/x-www-form-urlencoded',
-        ];
+        ], $additionalHeaders);
 
         /** @var \GuzzleHttp\Psr7\Request $request */
-        $request = $this->messageFactory->createRequest('POST', $this->getApiEndpoint(), $headers, http_build_query($fields));
+        $request = $this->messageFactory->createRequest('POST', $endpoint, $headers, http_build_query($fields));
 
         $response = $this->client->send($request);
-        if (false == ($response->getStatusCode() >= 200 && $response->getStatusCode() < 300)) {
+        if (!($response->getStatusCode() >= 200 && $response->getStatusCode() < 300)) {
             throw HttpException::factory($request, $response);
         }
 
         $xmlResponse = $response->getBody()->getContents();
 
         try {
-            $responseData = json_decode(json_encode((array)simplexml_load_string($xmlResponse)), 1);
+            $responseData = json_decode(json_encode((array) simplexml_load_string($xmlResponse), JSON_THROW_ON_ERROR), 1, 512, JSON_THROW_ON_ERROR);
         } catch (\Exception $e) {
             throw new LogicException("Response content is not valid xml: \n\n{$xmlResponse}");
         }
@@ -375,42 +353,7 @@ class Api
         return $responseData;
     }
 
-    /**
-     * @param array $fields
-     *
-     * @return array
-     */
-    protected function doPaymentModelRequest(array $fields)
-    {
-        $headers = [
-            'Authorization' => 'Basic ' . base64_encode($this->options['username'] . ':' . $this->options['password']),
-            'Content-Type'  => 'text/xml',
-            'Accept'        => 'application/xml',
-        ];
-
-        /** @var \GuzzleHttp\Psr7\Request $request */
-        $request = $this->messageFactory->createRequest('POST', $this->getPaymentModelRequestApiEndpoint(), $headers, http_build_query($fields));
-
-        $response = $this->client->send($request);
-        if (false == ($response->getStatusCode() >= 200 && $response->getStatusCode() < 300)) {
-            throw HttpException::factory($request, $response);
-        }
-
-        $xmlResponse = $response->getBody()->getContents();
-
-        try {
-            $responseData = json_decode(json_encode((array)simplexml_load_string($xmlResponse)), 1);
-        } catch (\Exception $e) {
-            throw new LogicException("Response content is not valid xml: \n\n{$xmlResponse}");
-        }
-
-        return $responseData;
-    }
-
-    /**
-     * @return string
-     */
-    public function getApiEndpoint()
+    private function getApiEndpoint(): string
     {
         if ($this->options['sandbox'] === false) {
             return 'https://gateway.mfgroup.ch';
@@ -419,10 +362,7 @@ class Api
         return 'https://testgateway.mfgroup.ch';
     }
 
-    /**
-     * @return string
-     */
-    public function getPaymentModelRequestApiEndpoint()
+    private function getPaymentModelRequestApiEndpoint(): string
     {
         if ($this->options['sandbox'] === false) {
             return 'https://gmtech.mfgroup.ch/payment-model';

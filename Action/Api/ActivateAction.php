@@ -7,9 +7,9 @@ use DachcomDigital\Payum\Powerpay\Exception\PowerpayException;
 use DachcomDigital\Payum\Powerpay\Request\Api\Activate;
 use Payum\Core\Action\ActionInterface;
 use Payum\Core\ApiAwareInterface;
+use Payum\Core\ApiAwareTrait;
 use Payum\Core\Bridge\Spl\ArrayObject;
 use Payum\Core\Exception\RequestNotSupportedException;
-use Payum\Core\Exception\UnsupportedApiException;
 use Payum\Core\GatewayAwareInterface;
 use Payum\Core\GatewayAwareTrait;
 
@@ -17,26 +17,21 @@ class ActivateAction implements ActionInterface, GatewayAwareInterface, ApiAware
 {
     use GatewayAwareTrait;
     use PowerpayAwareTrait;
+    use ApiAwareTrait {
+        setApi as _setApi;
+    }
 
-    /**
-     * @var Api
-     */
-    protected $api;
-
-    /**
-     * {@inheritDoc}
-     */
-    public function setApi($api)
+    public function __construct()
     {
-        if (false == $api instanceof Api) {
-            throw new UnsupportedApiException('Not supported.');
-        }
-        $this->api = $api;
+        $this->apiClass = Api::class;
+    }
+
+    public function setApi($api): void
+    {
+        $this->_setApi($api);
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @param Activate $request
      */
     public function execute($request)
@@ -48,7 +43,6 @@ class ActivateAction implements ActionInterface, GatewayAwareInterface, ApiAware
 
         //set transaction type
         $details['transaction_type'] = 'debit';
-        //$details['payment_model'] = ''; // not implemented
 
         try {
             $result = $this->api->generateActivationRequest($details);
@@ -66,9 +60,6 @@ class ActivateAction implements ActionInterface, GatewayAwareInterface, ApiAware
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function supports($request)
     {
         return
