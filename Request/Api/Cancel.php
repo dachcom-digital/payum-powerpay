@@ -6,23 +6,14 @@ use Payum\Core\Request\Generic;
 
 class Cancel extends Generic
 {
-    /**
-     * @var array
-     */
-    protected $result;
+    protected array $result = [];
 
-    /**
-     * @param $result
-     */
-    public function setResult($result)
+    public function setResult(array $result): void
     {
         $this->result = $result;
     }
 
-    /**
-     * @return array
-     */
-    public function getResult()
+    public function getResult(): array
     {
         return $this->result;
     }

@@ -7,9 +7,9 @@ use DachcomDigital\Payum\Powerpay\Exception\PowerpayException;
 use DachcomDigital\Payum\Powerpay\Request\Api\Confirm;
 use Payum\Core\Action\ActionInterface;
 use Payum\Core\ApiAwareInterface;
+use Payum\Core\ApiAwareTrait;
 use Payum\Core\Bridge\Spl\ArrayObject;
 use Payum\Core\Exception\RequestNotSupportedException;
-use Payum\Core\Exception\UnsupportedApiException;
 use Payum\Core\GatewayAwareInterface;
 use Payum\Core\GatewayAwareTrait;
 
@@ -17,26 +17,21 @@ class ConfirmAction implements ActionInterface, GatewayAwareInterface, ApiAwareI
 {
     use GatewayAwareTrait;
     use PowerpayAwareTrait;
+    use ApiAwareTrait {
+        setApi as _setApi;
+    }
 
-    /**
-     * @var Api
-     */
-    protected $api;
-
-    /**
-     * {@inheritDoc}
-     */
-    public function setApi($api)
+    public function __construct()
     {
-        if (false == $api instanceof Api) {
-            throw new UnsupportedApiException('Not supported.');
-        }
-        $this->api = $api;
+        $this->apiClass = Api::class;
+    }
+
+    public function setApi($api): void
+    {
+        $this->_setApi($api);
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @param Confirm $request
      */
     public function execute($request)
@@ -44,7 +39,7 @@ class ConfirmAction implements ActionInterface, GatewayAwareInterface, ApiAwareI
         RequestNotSupportedException::assertSupports($this, $request);
 
         $details = ArrayObject::ensureArrayObject($request->getModel());
-        $details->validateNotEmpty(['card_number']);
+        $details->validateNotEmpty(['card_number', 'transformed_transaction']);
 
         $details['payment_confirmed'] = false;
 
@@ -58,24 +53,22 @@ class ConfirmAction implements ActionInterface, GatewayAwareInterface, ApiAwareI
             //there was an error.
             if (isset($result['ResponseCode'])) {
                 $resultData['response_code'] = $result['ResponseCode'];
+            } elseif (isset($result['Skipped'])) {
+                $resultData['skipped'] = true;
+                $resultData['skipped_reason'] = $result['Skipped']['Reason'];
             } else {
-                if (isset($result['Skipped'])) {
-                    $resultData['skipped'] = true;
-                    $resultData['skipped_reason'] = $result['Skipped']['Reason'];
-                } else {
-                    $details['payment_confirmed'] = true;
-                    $resultData['card_statistics_name'] = $result['CardStatistics']['@attributes']['name'];
-                    $resultData['card_statistics_type'] = $result['CardStatistics']['@attributes']['type'];
-                    $resultData['card_statistics_currency'] = $result['CardStatistics']['@attributes']['currency'];
-                    $resultData['card_statistics_total_number'] = $result['CardStatistics']['Total']['@attributes']['number'];
-                    $resultData['card_statistics_total_amount'] = $result['CardStatistics']['Total']['@attributes']['amount'];
-                    $resultData['card_statistics_purchase_number'] = $result['CardStatistics']['Purchase']['@attributes']['number'];
-                    $resultData['card_statistics_purchase_amount'] = $result['CardStatistics']['Purchase']['@attributes']['amount'];
-                    $resultData['card_statistics_credit_number'] = $result['CardStatistics']['Credit']['@attributes']['number'];
-                    $resultData['card_statistics_credit_amount'] = $result['CardStatistics']['Credit']['@attributes']['amount'];
-                    $resultData['card_statistics_reversal_number'] = $result['CardStatistics']['Reversal']['@attributes']['number'];
-                    $resultData['card_statistics_reversal_amount'] = $result['CardStatistics']['Reversal']['@attributes']['amount'];
-                }
+                $details['payment_confirmed'] = true;
+                $resultData['card_statistics_name'] = $result['CardStatistics']['@attributes']['name'];
+                $resultData['card_statistics_type'] = $result['CardStatistics']['@attributes']['type'];
+                $resultData['card_statistics_currency'] = $result['CardStatistics']['@attributes']['currency'];
+                $resultData['card_statistics_total_number'] = $result['CardStatistics']['Total']['@attributes']['number'];
+                $resultData['card_statistics_total_amount'] = $result['CardStatistics']['Total']['@attributes']['amount'];
+                $resultData['card_statistics_purchase_number'] = $result['CardStatistics']['Purchase']['@attributes']['number'];
+                $resultData['card_statistics_purchase_amount'] = $result['CardStatistics']['Purchase']['@attributes']['amount'];
+                $resultData['card_statistics_credit_number'] = $result['CardStatistics']['Credit']['@attributes']['number'];
+                $resultData['card_statistics_credit_amount'] = $result['CardStatistics']['Credit']['@attributes']['amount'];
+                $resultData['card_statistics_reversal_number'] = $result['CardStatistics']['Reversal']['@attributes']['number'];
+                $resultData['card_statistics_reversal_amount'] = $result['CardStatistics']['Reversal']['@attributes']['amount'];
             }
 
             $request->setResult($resultData);
@@ -85,9 +78,6 @@ class ConfirmAction implements ActionInterface, GatewayAwareInterface, ApiAwareI
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function supports($request)
     {
         return

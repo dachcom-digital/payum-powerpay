@@ -8,9 +8,9 @@ use DachcomDigital\Payum\Powerpay\Request\Api\Cancel;
 use DachcomDigital\Payum\Powerpay\Request\Api\CreditAmount;
 use Payum\Core\Action\ActionInterface;
 use Payum\Core\ApiAwareInterface;
+use Payum\Core\ApiAwareTrait;
 use Payum\Core\Bridge\Spl\ArrayObject;
 use Payum\Core\Exception\RequestNotSupportedException;
-use Payum\Core\Exception\UnsupportedApiException;
 use Payum\Core\GatewayAwareInterface;
 use Payum\Core\GatewayAwareTrait;
 
@@ -18,21 +18,18 @@ class CreditAmountAction implements ActionInterface, GatewayAwareInterface, ApiA
 {
     use GatewayAwareTrait;
     use PowerpayAwareTrait;
+    use ApiAwareTrait {
+        setApi as _setApi;
+    }
 
-    /**
-     * @var Api
-     */
-    protected $api;
-
-    /**
-     * {@inheritDoc}
-     */
-    public function setApi($api)
+    public function __construct()
     {
-        if (false == $api instanceof Api) {
-            throw new UnsupportedApiException('Not supported.');
-        }
-        $this->api = $api;
+        $this->apiClass = Api::class;
+    }
+
+    public function setApi($api): void
+    {
+        $this->_setApi($api);
     }
 
     /**
@@ -43,7 +40,7 @@ class CreditAmountAction implements ActionInterface, GatewayAwareInterface, ApiA
         RequestNotSupportedException::assertSupports($this, $request);
 
         $details = ArrayObject::ensureArrayObject($request->getModel());
-        $details->validateNotEmpty(['card_number']);
+        $details->validateNotEmpty(['card_number', 'transformed_transaction']);
 
         //set transaction type
         $details['transaction_type'] = 'credit';
@@ -69,9 +66,6 @@ class CreditAmountAction implements ActionInterface, GatewayAwareInterface, ApiA
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function supports($request)
     {
         return

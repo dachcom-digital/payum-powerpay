@@ -6,12 +6,7 @@ use DachcomDigital\Payum\Powerpay\Exception\PowerpayException;
 
 trait PowerpayAwareTrait
 {
-    /**
-     * @param \ArrayAccess      $details
-     * @param PowerpayException $e
-     * @param object            $request
-     */
-    protected function populateDetailsWithError(\ArrayAccess $details, PowerpayException $e, $request)
+    protected function populateDetailsWithError(\ArrayAccess $details, PowerpayException $e, object $request): void
     {
         $details['error_request'] = get_class($request);
         $details['error_file'] = $e->getFile();
